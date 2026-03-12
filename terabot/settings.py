@@ -38,8 +38,8 @@ EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL  = EMAIL_HOST_USER
 
-# TeraBOT
-ANTHROPIC_API_KEY        = os.environ.get('ANTHROPIC_API_KEY', '')
+# TeraBOT — using Groq (free)
+GROQ_API_KEY             = os.environ.get('GROQ_API_KEY', '')
 CHATBOT_ALLOWED_ORIGIN   = os.environ.get('CHATBOT_ALLOWED_ORIGIN', '*')
 LEAD_NOTIFICATION_EMAILS = os.environ.get('LEAD_EMAILS', 'yogesh@teralumen.com').split(',')
 

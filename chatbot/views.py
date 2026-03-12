@@ -28,7 +28,7 @@ Conversation Flow:
 4. Explain how THz solves their specific problem
 5. When appropriate, ask for their full name, company name, and email address
 6. After they share contact info end your reply with:
-LEAD_CAPTURED:{"name":"<name>","company":"<company>","email":"<email>","product":"<product>"}
+LEAD_CAPTURED:{"name":"<n>","company":"<company>","email":"<email>","product":"<product>"}
 
 Keep responses to 2-4 sentences. Plain text only, no markdown. Be warm and consultative."""
 
@@ -55,7 +55,6 @@ def send_lead_email(lead_data, conversation_summary=""):
         product  = lead_data.get("product", "Not specified")
         industry = lead_data.get("industry", "Not specified")
 
-        # Email to TeraLumen team
         send_mail(
             subject=f"New TeraBOT Lead: {name} — {company}",
             message=f"""New lead captured via TeraBOT on TeraLumen website.
@@ -80,7 +79,6 @@ TeraLumen Solutions Pvt. Ltd., Chennai""",
             fail_silently=False,
         )
 
-        # Confirmation email to visitor
         send_mail(
             subject="Thank you for your interest in TeraLumen THz Systems",
             message=f"""Dear {name},
@@ -113,6 +111,28 @@ TeraLumen Solutions Pvt. Ltd., Chennai""",
         return False
 
 
+def call_groq(messages):
+    """Call Groq API — free, fast, no credit card needed."""
+    response = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "llama3-8b-8192",   # free model on Groq
+            "max_tokens": 600,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                *messages
+            ],
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
+
+
 @csrf_exempt
 @require_http_methods(["POST", "OPTIONS"])
 def chat(request):
@@ -140,24 +160,8 @@ def chat(request):
         if not messages:
             return _error("No messages provided", 400)
 
-        # Normal AI chat
-        anthropic_resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": settings.ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "claude-sonnet-4-20250514",
-                "max_tokens": 600,
-                "system": SYSTEM_PROMPT,
-                "messages": messages,
-            },
-            timeout=30,
-        )
-        anthropic_resp.raise_for_status()
-        raw_reply  = anthropic_resp.json()["content"][0]["text"]
+        # Call Groq AI
+        raw_reply  = call_groq(messages)
         lead_data  = extract_lead_data(raw_reply)
         clean_text = clean_reply(raw_reply)
         email_sent = False
