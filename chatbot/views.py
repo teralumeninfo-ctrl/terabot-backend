@@ -120,7 +120,7 @@ def call_groq(messages):
             "Content-Type": "application/json",
         },
         json={
-            "model": "llama3-8b-8192",   # free model on Groq
+            "model": "llama-3.1-8b-instant",   # free model on Groq
             "max_tokens": 600,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
