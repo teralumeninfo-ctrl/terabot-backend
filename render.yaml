@@ -3,4 +3,4 @@ services:
     name: terabot-backend
     env: python
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: gunicorn terabot.wsgi:application
+    startCommand: gunicorn terabot.wsgi:application --timeout 120
