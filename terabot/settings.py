@@ -54,3 +54,12 @@ LOGGING = {
 CORS_ALLOWED_ORIGINS = [
     "https://www.teralumensolutions.com",
 ]
+
+CORS_ALLOW_HEADERS = [
+    "content-type",
+]
+
+CORS_ALLOW_METHODS = [
+    "POST",
+    "OPTIONS",
+]
