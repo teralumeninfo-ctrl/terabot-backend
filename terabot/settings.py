@@ -6,12 +6,10 @@ ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
     'django.contrib.staticfiles',
-    'corsheaders',
     'chatbot',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
@@ -51,15 +49,3 @@ LOGGING = {
     'handlers': {'console': {'class': 'logging.StreamHandler'}},
     'root': {'handlers': ['console'], 'level': 'INFO'},
 }
-CORS_ALLOWED_ORIGINS = [
-    "https://www.teralumensolutions.com",
-]
-
-CORS_ALLOW_HEADERS = [
-    "content-type",
-]
-
-CORS_ALLOW_METHODS = [
-    "POST",
-    "OPTIONS",
-]
