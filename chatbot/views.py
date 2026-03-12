@@ -30,7 +30,8 @@ Conversation Flow:
 6. After they share contact info end your reply with:
 LEAD_CAPTURED:{"name":"<n>","company":"<company>","email":"<email>","product":"<product>"}
 
-Keep responses to 2-4 sentences. Plain text only, no markdown. Be warm and consultative."""
+Keep responses to 2-4 sentences. Plain text only, no markdown. Be warm and consultative.
+"""
 
 
 def extract_lead_data(reply_text):
@@ -39,7 +40,7 @@ def extract_lead_data(reply_text):
         try:
             return json.loads(match.group(1))
         except json.JSONDecodeError:
-            logger.warning("Could not parse lead JSON from reply")
+            logger.warning("Could not parse lead JSON")
     return None
 
 
@@ -49,55 +50,40 @@ def clean_reply(reply_text):
 
 def send_lead_email(lead_data, conversation_summary=""):
     try:
-        name     = lead_data.get("name", "Unknown")
-        company  = lead_data.get("company", "Unknown")
-        email    = lead_data.get("email", "Unknown")
-        product  = lead_data.get("product", "Not specified")
+        name = lead_data.get("name", "Unknown")
+        company = lead_data.get("company", "Unknown")
+        email = lead_data.get("email", "Unknown")
+        product = lead_data.get("product", "Not specified")
         industry = lead_data.get("industry", "Not specified")
 
         send_mail(
             subject=f"New TeraBOT Lead: {name} — {company}",
-            message=f"""New lead captured via TeraBOT on TeraLumen website.
+            message=f"""New lead captured via TeraBOT
 
-LEAD DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━
-Name      : {name}
-Company   : {company}
-Email     : {email}
-Industry  : {industry}
-Product   : {product}
-━━━━━━━━━━━━━━━━━━━━━━━━
+Name: {name}
+Company: {company}
+Email: {email}
+Industry: {industry}
+Product: {product}
 
-{f"CONVERSATION:{chr(10)}{conversation_summary}" if conversation_summary else ""}
-
-Action: Follow up within 24 hours.
-
-— TeraBOT Automated Alert
-TeraLumen Solutions Pvt. Ltd., Chennai""",
+{conversation_summary}
+""",
             from_email=settings.EMAIL_HOST_USER,
             recipient_list=settings.LEAD_NOTIFICATION_EMAILS,
             fail_silently=False,
         )
 
         send_mail(
-            subject="Thank you for your interest in TeraLumen THz Systems",
+            subject="Thank you for contacting TeraLumen",
             message=f"""Dear {name},
 
-Thank you for your interest in TeraLumen's Terahertz solutions!
+Thank you for your interest in TeraLumen Terahertz systems.
 
-Our applications team has received your enquiry and will reach out within 24 hours.
-
-Enquiry Summary:
-  Name     : {name}
-  Company  : {company}
-  Industry : {industry}
-  Product  : {product}
-
-Explore our products: https://www.teralumen.com
+Our team will contact you within 24 hours.
 
 Best regards,
-Applications Team
-TeraLumen Solutions Pvt. Ltd., Chennai""",
+TeraLumen Solutions
+""",
             from_email=settings.EMAIL_HOST_USER,
             recipient_list=[email],
             fail_silently=True,
@@ -107,12 +93,11 @@ TeraLumen Solutions Pvt. Ltd., Chennai""",
         return True
 
     except Exception as e:
-        logger.error(f"Failed to send lead email: {e}")
+        logger.error(f"Lead email failed: {e}")
         return False
 
 
 def call_groq(messages):
-    """Call Groq API — free, fast, no credit card needed."""
     response = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={
@@ -120,7 +105,7 @@ def call_groq(messages):
             "Content-Type": "application/json",
         },
         json={
-            "model": "llama3-8b-8192",   # free model on Groq
+            "model": "llama3-8b-8192",
             "max_tokens": 600,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -129,45 +114,57 @@ def call_groq(messages):
         },
         timeout=30,
     )
+
     response.raise_for_status()
+
     return response.json()["choices"][0]["message"]["content"]
 
 
 @csrf_exempt
 @require_http_methods(["POST", "OPTIONS"])
 def chat(request):
+
     if request.method == "OPTIONS":
         response = JsonResponse({})
-        _add_cors(response)
-        return response
+        return _add_cors(response)
 
     try:
-        body        = json.loads(request.body)
-        messages    = body.get("messages", [])
-        manual_lead = body.get("manual_lead", None)
+        body = json.loads(request.body)
 
-        # Manual Submit button trigger
+        messages = body.get("messages")
+
+        # Support widgets sending single message
+        if not messages and body.get("message"):
+            messages = [{"role": "user", "content": body.get("message")}]
+
+        manual_lead = body.get("manual_lead")
+
         if manual_lead:
             email_sent = send_lead_email(manual_lead)
+
             response = JsonResponse({
-                "reply": f"Thank you {manual_lead.get('name', '')}! Your details have been submitted. Our team will contact you within 24 hours.",
+                "reply": f"Thank you {manual_lead.get('name','')}! Our team will contact you within 24 hours.",
                 "lead_captured": True,
                 "email_sent": email_sent,
             })
-            _add_cors(response)
-            return response
+
+            return _add_cors(response)
 
         if not messages:
             return _error("No messages provided", 400)
 
-        # Call Groq AI
-        raw_reply  = call_groq(messages)
-        lead_data  = extract_lead_data(raw_reply)
+        raw_reply = call_groq(messages)
+
+        lead_data = extract_lead_data(raw_reply)
         clean_text = clean_reply(raw_reply)
+
         email_sent = False
 
         if lead_data:
-            convo = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in messages[-6:]])
+            convo = "\n".join(
+                [f"{m['role']}: {m['content']}" for m in messages[-6:]]
+            )
+
             email_sent = send_lead_email(lead_data, convo)
 
         response = JsonResponse({
@@ -176,25 +173,30 @@ def chat(request):
             "lead_data": lead_data,
             "email_sent": email_sent,
         })
-        _add_cors(response)
-        return response
+
+        return _add_cors(response)
 
     except requests.exceptions.Timeout:
-        return _error("Request timed out. Please try again.", 504)
+        return _error("AI request timed out", 504)
+
     except requests.exceptions.RequestException as e:
         return _error(f"API error: {str(e)}", 502)
+
     except json.JSONDecodeError:
         return _error("Invalid JSON", 400)
+
     except Exception as e:
-        logger.exception("Unexpected error in chat view")
-        return _error(f"Server error: {str(e)}", 500)
+        logger.exception("Unexpected error")
+        return _error(str(e), 500)
 
 
 def _add_cors(response):
     origin = getattr(settings, "CHATBOT_ALLOWED_ORIGIN", "*")
+
     response["Access-Control-Allow-Origin"] = origin
     response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
     response["Access-Control-Allow-Headers"] = "Content-Type"
+
     return response
 
 
