@@ -98,27 +98,38 @@ TeraLumen Solutions
 
 
 def call_groq(messages):
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": "llama3-8b-8192",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            *messages
+        ],
+        "temperature": 0.7,
+        "max_tokens": 500
+    }
+
     response = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": "llama3-8b-8192",
-            "max_tokens": 600,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                *messages
-            ],
-        },
-        timeout=30,
+        url,
+        headers=headers,
+        json=payload,
+        timeout=30
     )
 
-    response.raise_for_status()
+    if response.status_code != 200:
+        logger.error(f"GROQ ERROR: {response.text}")
+        response.raise_for_status()
 
-    return response.json()["choices"][0]["message"]["content"]
+    data = response.json()
 
+    return data["choices"][0]["message"]["content"]
 
 @csrf_exempt
 @require_http_methods(["POST", "OPTIONS"])
