@@ -28,9 +28,9 @@ DATABASES = {
     }
 }
 
-# Outlook SMTP
+# Gmail SMTP
 EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST          = 'smtp.office365.com'
+EMAIL_HOST          = 'smtp.gmail.com'
 EMAIL_PORT          = 587
 EMAIL_USE_TLS       = True
 EMAIL_USE_SSL       = False
@@ -38,7 +38,7 @@ EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL  = EMAIL_HOST_USER
 
-# TeraBOT — using Groq (free)
+# TeraBOT
 GROQ_API_KEY             = os.environ.get('GROQ_API_KEY', '')
 CHATBOT_ALLOWED_ORIGIN   = os.environ.get('CHATBOT_ALLOWED_ORIGIN', '*')
 LEAD_NOTIFICATION_EMAILS = os.environ.get('LEAD_EMAILS', 'yogesh@teralumen.com').split(',')
