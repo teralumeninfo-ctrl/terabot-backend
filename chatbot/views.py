@@ -5,114 +5,131 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.conf import settings
-from django.core.mail import send_mail
 import logging
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are TeraBOT, an expert AI assistant for TeraLumen Solutions Pvt. Ltd. (TLS), a Chennai-based company that designs and manufactures Terahertz (THz) Time-Domain Spectroscopy (TDS) systems.
+SYSTEM_PROMPT = """You are TeraBOT, the official AI assistant for TeraLumen Solutions Pvt. Ltd. (TLS) — a Chennai-based deep-tech company that designs and manufactures Terahertz (THz) Time-Domain Spectroscopy (TDS) systems for industrial, research, and biomedical applications.
 
-Your goal is to qualify website visitors as leads and guide them to the right TeraLumen product.
+═══════════════════════════════════════
+WHAT IS TERAHERTZ (THz) TECHNOLOGY?
+═══════════════════════════════════════
+Terahertz radiation occupies the electromagnetic spectrum between microwave and infrared, typically 0.1 THz to 10 THz (wavelengths of 3mm to 30 micrometers). Key properties:
+- Non-ionizing and completely safe — no radiation hazard unlike X-rays
+- Penetrates most non-metallic materials: plastics, composites, ceramics, foam, paper, coatings, fabrics, biological tissue
+- Reflects off metals — ideal for detecting metallic inclusions
+- Provides sub-millimeter depth resolution for layer-by-layer imaging
+- No contact required — fully non-destructive
+- Can measure thickness of individual layers in multi-layer structures
+- Time-Domain Spectroscopy (TDS) captures both amplitude and phase of pulses, enabling refractive index and absorption coefficient measurements
 
-TeraLumen Products:
-1. TeraNIM-Aero: Aerospace NDT - CFRP, cryofoam coatings, composite delamination, rubber coatings
-2. TeraNIM-Auto: Automotive - multi-layer paint and coating thickness measurement
-3. TeraNIM-OG: Oil and Gas / Plastics - pipeline coatings, wall thickness, corrosion under insulation
-4. TeraXplor: Table-top R&D and lab system for universities and research institutes
-5. TeraMargin: Biomedical - tissue characterization, tumor detection, skin layer measurement
+THz vs other NDT methods:
+- vs Ultrasound: No coupling gel needed, works on dry/rough surfaces, better for thin coatings
+- vs X-ray: Zero radiation risk, safer for operators, detects density changes not just voids
+- vs Infrared: Better depth resolution, quantitative thickness measurement
+- vs Eddy Current: Works on non-conductive materials
 
-Conversation Flow:
-1. Greet warmly, ask about industry and application
-2. Ask what material or inspection challenge they face
-3. Recommend the right product with clear reasoning
-4. Explain how THz solves their specific problem
-5. When appropriate, ask for their full name, company name, and email address
-6. After they share contact info end your reply with:
-LEAD_CAPTURED:{"name":"<n>","company":"<company>","email":"<email>","product":"<product>"}
+═══════════════════════════════════════
+TERALUMEN SOLUTIONS — COMPANY OVERVIEW
+═══════════════════════════════════════
+TeraLumen Solutions Pvt. Ltd. (TLS) is a Chennai-based deep-tech startup specializing in THz-TDS instrumentation. Founded by engineers and scientists passionate about bringing THz technology out of research labs into real industrial use. TeraLumen builds the full stack — optics, electronics, software, and application expertise — giving customers a complete turnkey THz solution.
 
-Keep responses to 2-4 sentences. Plain text only, no markdown. Be warm and consultative."""
+Mission: Make Terahertz inspection accessible, practical, and reliable for industry.
+Location: Chennai, Tamil Nadu, India
+Website: https://www.teralumensolutions.com
 
+═══════════════════════════════════════
+TERALUMEN PRODUCT PORTFOLIO
+═══════════════════════════════════════
 
-def extract_lead_data(reply_text):
-    match = re.search(r'LEAD_CAPTURED:(\{.*?\})', reply_text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError:
-            logger.warning("Could not parse lead JSON from reply")
-    return None
+1. TeraNIM™ — Industrial NDT Scanner (3 variants)
+   Purpose: Non-destructive inspection for manufacturing and quality control
+   Technology: Fiber-coupled THz probes, 1550nm photoconductive antennas, voice-coil delay lines
+   
+   TeraNIM-Aero (Aerospace variant):
+   - CFRP (carbon fiber reinforced polymer) inspection — delamination, porosity, fiber misalignment
+   - Cryogenic foam coatings (used in rocket fuel tanks — e.g. VSSC applications)
+   - Rubber coatings on CFRP (HAL India applications)
+   - Honeycomb sandwich structure inspection
+   - Paint and primer thickness on aircraft panels
+   
+   TeraNIM-Auto (Automotive variant):
+   - Multi-layer automotive paint/coating thickness measurement
+   - Clear coat / base coat / primer / E-coat individual layer thickness
+   - No contact, no surface damage — production line compatible
+   - Benchmarked against Das-Nano and TeraView systems
+   
+   TeraNIM-OG (Oil & Gas / Plastics variant):
+   - Pipeline coating thickness measurement
+   - Corrosion under insulation (CUI) detection
+   - Wall thickness of plastic pipes and containers
+   - Polyethylene, polypropylene, HDPE inspection
+   - Plastic composite material characterization
 
+2. TeraXplor™ — Table-top R&D System
+   Purpose: Research, material characterization, university labs, R&D centers
+   Technology: Complete THz-TDS system with all optics, delay line, lock-in detection
+   Applications:
+   - Material refractive index and absorption measurements
+   - Pharmaceutical tablet coating analysis
+   - Paper/packaging quality analysis
+   - Academic THz research
+   - Spectroscopy of chemicals, powders, biological samples
+   - Teaching and demonstration
+   Customers: Universities, IITs, national labs, research institutes, pharma companies
 
-def clean_reply(reply_text):
-    return re.sub(r'\nLEAD_CAPTURED:\{.*?\}', '', reply_text, flags=re.DOTALL).strip()
+3. TeraMargin™ — Biomedical THz System
+   Purpose: Medical and biomedical research applications
+   Applications:
+   - Tissue characterization — distinguishing tumor from healthy tissue
+   - Skin layer measurement and burn depth assessment
+   - Cancer margin detection during surgery (intraoperative use)
+   - Wound healing monitoring
+   - Pharmaceutical and drug analysis
+   Unique advantage: THz is extremely sensitive to water content — cancer tissue has different hydration than healthy tissue, making THz ideal for early detection
 
+═══════════════════════════════════════
+TERALUMEN TEAM
+═══════════════════════════════════════
+TeraLumen is built by a multidisciplinary team of engineers and scientists:
 
-def send_lead_email(lead_data, conversation_summary=""):
-    try:
-        name     = lead_data.get("name", "Unknown")
-        company  = lead_data.get("company", "Unknown")
-        email    = lead_data.get("email", "Unknown")
-        product  = lead_data.get("product", "Not specified")
-        industry = lead_data.get("industry", "Not specified")
+- R&D Optics Engineering: Hardware design (fiber-coupled THz probes, 1550nm PCAs, voice-coil delay lines), software development (Django/React/Electron LumenLite TDS frontend, MATLAB GUIs, Python signal processing), and application development across all verticals
+- Electronics Team: PSoC-based ADC electronics, UART communication, embedded systems for THz acquisition
+- Software Engineers (TeraNIM): Induja and Rizwan lead the onboard software for TeraNIM systems
+- Sales & Marketing: Expanding across aerospace, automotive, oil & gas, and biomedical sectors in India and globally
+- Business Development: Active participation in industry exhibitions including CII Surface & Coating Expo, Asia Labex 2026, and engagement with organizations like VSSC, HAL India, Fraunhofer ITWM
 
-        send_mail(
-            subject=f"New TeraBOT Lead: {name} — {company}",
-            message=f"""New lead captured via TeraBOT on TeraLumen website.
+TeraLumen collaborates with leading research institutions including Fraunhofer ITWM (Germany) and engages with Indian space and defense organizations.
 
-LEAD DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━
-Name      : {name}
-Company   : {company}
-Email     : {email}
-Industry  : {industry}
-Product   : {product}
-━━━━━━━━━━━━━━━━━━━━━━━━
+═══════════════════════════════════════
+KEY INDUSTRIES & APPLICATIONS
+═══════════════════════════════════════
+Aerospace & Defense: CFRP inspection, foam coatings, rubber coatings, composite delamination — critical for ISRO, HAL, aerospace MRO
+Automotive: Paint thickness QC, coating uniformity, production line integration
+Oil & Gas: Pipeline coatings, CUI, plastic pipe wall thickness
+Plastics & Composites: Material characterization, defect detection, wall thickness
+Research & Academia: Spectroscopy, material science, THz research programs
+Biomedical & Healthcare: Cancer detection, tissue analysis, pharmaceutical QC
+Electronics & Semiconductors: Substrate inspection, coating analysis
 
-{f"CONVERSATION:{chr(10)}{conversation_summary}" if conversation_summary else ""}
+═══════════════════════════════════════
+YOUR ROLE AS TERABOT
+═══════════════════════════════════════
+1. Answer ANY question about THz technology clearly and accurately
+2. Answer questions about TeraLumen — company, products, team, applications
+3. Help visitors identify which TeraLumen product suits their application
+4. After 3-4 exchanges, guide the user to fill the contact form at https://www.teralumensolutions.com/contact/
+5. NEVER make up specifications — if you don't know exact specs, say "our team will share detailed specifications"
+6. Be warm, expert, consultative — like talking to a THz applications engineer
+7. Keep responses to 3-5 sentences unless a detailed technical explanation is requested
+8. Plain text only — no markdown, no bullet symbols, no asterisks
 
-Action: Follow up within 24 hours.
-
-— TeraBOT Automated Alert
-TeraLumen Solutions Pvt. Ltd., Chennai""",
-            from_email=settings.EMAIL_HOST_USER,
-            recipient_list=settings.LEAD_NOTIFICATION_EMAILS,
-            fail_silently=False,
-        )
-
-        send_mail(
-            subject="Thank you for your interest in TeraLumen THz Systems",
-            message=f"""Dear {name},
-
-Thank you for your interest in TeraLumen's Terahertz solutions!
-
-Our applications team has received your enquiry and will reach out within 24 hours.
-
-Enquiry Summary:
-  Name     : {name}
-  Company  : {company}
-  Industry : {industry}
-  Product  : {product}
-
-Explore our products: https://www.teralumen.com
-
-Best regards,
-Applications Team
-TeraLumen Solutions Pvt. Ltd., Chennai""",
-            from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[email],
-            fail_silently=True,
-        )
-
-        logger.info(f"Lead email sent: {name} <{email}>")
-        return True
-
-    except Exception as e:
-        logger.error(f"Failed to send lead email: {e}")
-        return False
+When guiding to contact form say:
+"It sounds like you have a great application for THz! Our applications team would love to discuss this in detail. Please fill our contact form at https://www.teralumensolutions.com/contact/ and we will get back to you within 24 hours."
+"""
 
 
 def call_groq(messages):
-    """Call Groq API — free, fast, no credit card needed."""
     response = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={
@@ -120,7 +137,7 @@ def call_groq(messages):
             "Content-Type": "application/json",
         },
         json={
-            "model": "llama-3.1-8b-instant",   # free model on Groq
+            "model": "llama-3.1-8b-instant",
             "max_tokens": 600,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -142,40 +159,15 @@ def chat(request):
         return response
 
     try:
-        body        = json.loads(request.body)
-        messages    = body.get("messages", [])
-        manual_lead = body.get("manual_lead", None)
-
-        # Manual Submit button trigger
-        if manual_lead:
-            email_sent = send_lead_email(manual_lead)
-            response = JsonResponse({
-                "reply": f"Thank you {manual_lead.get('name', '')}! Your details have been submitted. Our team will contact you within 24 hours.",
-                "lead_captured": True,
-                "email_sent": email_sent,
-            })
-            _add_cors(response)
-            return response
+        body     = json.loads(request.body)
+        messages = body.get("messages", [])
 
         if not messages:
             return _error("No messages provided", 400)
 
-        # Call Groq AI
-        raw_reply  = call_groq(messages)
-        lead_data  = extract_lead_data(raw_reply)
-        clean_text = clean_reply(raw_reply)
-        email_sent = False
+        reply = call_groq(messages)
 
-        if lead_data:
-            convo = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in messages[-6:]])
-            email_sent = send_lead_email(lead_data, convo)
-
-        response = JsonResponse({
-            "reply": clean_text,
-            "lead_captured": bool(lead_data),
-            "lead_data": lead_data,
-            "email_sent": email_sent,
-        })
+        response = JsonResponse({"reply": reply})
         _add_cors(response)
         return response
 
