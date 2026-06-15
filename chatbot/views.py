@@ -30,6 +30,8 @@ Email: admin@teralumensolutions.com
 Website: https://www.teralumensolutions.com
 WhatsApp: +91-7022275333
 
+Date of Incorporation: 22nd July 2019 (6 years old as of 2025)
+CIN: U29309TN2019PTC130635 | ROC: Chennai | Status: Active
 Certifications: ISO 9001:2015 | ISO 13485:2016 (Medical Devices)
 Learn more: https://www.teralumensolutions.com/iso/
 
