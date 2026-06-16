@@ -198,39 +198,49 @@ def call_groq(messages):
     response.raise_for_status()
     raw = response.json()["choices"][0]["message"]["content"]
     import re
-    # Strip markdown link syntax [label](url) → plain url
-    raw = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\2', raw)
-    # Remove stray asterisks
+
+    # Step 1: Strip markdown link syntax [label](url) → bare url
+    raw = re.sub(r'\[([^\]]+)\]\((https?://[^\)\s]+)\)', r'\2', raw)
+
+    # Step 2: Protect all URLs before any character stripping
+    url_pattern = re.compile(r'https?://[^\s<>"\']+')
+    protected = {}
+    def protect_url(m):
+        key = f"URLTOKEN{len(protected)}END"
+        protected[key] = m.group(0)
+        return key
+    raw = url_pattern.sub(protect_url, raw)
+
+    # Step 3: Strip stray asterisks and hash signs from non-URL text
     raw = re.sub(r'\*+', '', raw)
-    # Remove # only when NOT part of a URL (i.e. not preceded by a teralumensolutions.com path)
-    # Strategy: temporarily protect all URLs, strip #, then restore
-    url_pattern = re.compile(r'https?://\S+')
-    urls_found = url_pattern.findall(raw)
-    placeholders = {}
-    for i, url in enumerate(urls_found):
-        token = f"__URL{i}__"
-        placeholders[token] = url
-        raw = raw.replace(url, token, 1)
-    # Now safe to strip stray # signs (none remain inside URLs)
     raw = re.sub(r'#+', '', raw)
-    # Restore URLs
-    for token, url in placeholders.items():
-        raw = raw.replace(token, url)
-    # Clean up extra blank lines
+
+    # Step 4: Restore URLs
+    for key, url in protected.items():
+        raw = raw.replace(key, url)
+
+    # Step 5: Fix known corruption patterns in URLs
+    raw = re.sub(r'/about-us/-us/', '/about-us/', raw)
+
+    # Step 6: Clean up extra blank lines
     raw = re.sub(r'\n{3,}', '\n\n', raw).strip()
-    # ── Correct known bad URLs the model hallucinates ──
+
+    # Step 7: Hard-replace known bad URLs the model hallucinates
     URL_FIXES = {
-        "https://www.teralumensolutions.com/about-us/team-sec":    "https://www.teralumensolutions.com/about-us/#team-sec",
-        "https://www.teralumensolutions.com/about-us/team":        "https://www.teralumensolutions.com/about-us/#team-sec",
-        "https://www.teralumensolutions.com/team/":                "https://www.teralumensolutions.com/about-us/#team-sec",
-        "https://www.teralumensolutions.com/team":                 "https://www.teralumensolutions.com/about-us/#team-sec",
-        "https://www.teralumensolutions.com/about/":               "https://www.teralumensolutions.com/about-us/",
-        "https://www.teralumensolutions.com/about":                "https://www.teralumensolutions.com/about-us/",
-        "https://teralumensolutions.com/about-us/":                "https://www.teralumensolutions.com/about-us/",
+        "https://www.teralumensolutions.com/about-us/-us/#team-sec": "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/about-us/-us/":          "https://www.teralumensolutions.com/about-us/",
+        "https://www.teralumensolutions.com/about-us/team-sec":      "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/about-us/team":          "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/team/":                  "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/team":                   "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/about/":                 "https://www.teralumensolutions.com/about-us/",
+        "https://www.teralumensolutions.com/about":                  "https://www.teralumensolutions.com/about-us/",
+        "https://teralumensolutions.com/about-us/":                  "https://www.teralumensolutions.com/about-us/",
         "https://www.teralumensolutions.com/url-slugthz-cement-hydration-kinetics-c3s-tricalcium-silicate/": "https://www.teralumensolutions.com/journals/",
     }
     for bad, good in URL_FIXES.items():
         raw = raw.replace(bad, good)
+
     return raw
 
 
