@@ -281,8 +281,8 @@ def call_groq(messages):
 
     # Hard-replace known hallucinated bad URLs
     URL_FIXES = {
-        "https://www.teralumensolutions.com/about-us/-us/#team-sec": "https://www.teralumensolutions.com/about-us/#team-sec",
-        "https://www.teralumensolutions.com/about-us/-us/":          "https://www.teralumensolutions.com/about-us/",
+        "https://www.teralumensolutions.com/about-us/#team-sec": "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/about-us/":          "https://www.teralumensolutions.com/about-us/",
         "https://www.teralumensolutions.com/about-us/team-sec":      "https://www.teralumensolutions.com/about-us/#team-sec",
         "https://www.teralumensolutions.com/about-us/team":          "https://www.teralumensolutions.com/about-us/#team-sec",
         "https://www.teralumensolutions.com/team/":                  "https://www.teralumensolutions.com/about-us/#team-sec",
