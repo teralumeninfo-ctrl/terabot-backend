@@ -287,10 +287,3 @@ def _add_cors(response):
 def _error(msg, status):
     r = JsonResponse({"error": msg}, status=status)
     return _add_cors(r)
-
-
-@csrf_exempt
-@require_http_methods(["GET", "HEAD"])
-def ping(request):
-    """Lightweight keepalive endpoint — for UptimeRobot to ping every 5 min."""
-    return JsonResponse({"status": "ok"})
