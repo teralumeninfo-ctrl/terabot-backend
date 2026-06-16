@@ -1,10 +1,6 @@
-from django.urls import path, include
-from django.http import HttpResponse
-
-def health(request):
-    return HttpResponse("OK", status=200)
+from django.urls import path
+from . import views
 
 urlpatterns = [
-    path('health/', health),
-    path('api/chatbot/', include('chatbot.urls')),
+    path('chat/', views.chat, name='terabot-chat'),
 ]
