@@ -169,6 +169,19 @@ def call_groq(messages):
     raw = re.sub(r'[*#]+', '', raw)
     # Clean up extra blank lines
     raw = re.sub(r'\n{3,}', '\n\n', raw).strip()
+    # ── Correct known bad URLs the model hallucinates ──
+    URL_FIXES = {
+        "https://www.teralumensolutions.com/about-us/team-sec":    "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/about-us/team":        "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/team/":                "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/team":                 "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/about/":               "https://www.teralumensolutions.com/about-us/",
+        "https://www.teralumensolutions.com/about":                "https://www.teralumensolutions.com/about-us/",
+        "https://teralumensolutions.com/about-us/":                "https://www.teralumensolutions.com/about-us/",
+        "https://www.teralumensolutions.com/url-slugthz-cement-hydration-kinetics-c3s-tricalcium-silicate/": "https://www.teralumensolutions.com/journals/",
+    }
+    for bad, good in URL_FIXES.items():
+        raw = raw.replace(bad, good)
     return raw
 
 
