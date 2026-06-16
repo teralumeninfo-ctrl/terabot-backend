@@ -197,11 +197,25 @@ def call_groq(messages):
     )
     response.raise_for_status()
     raw = response.json()["choices"][0]["message"]["content"]
-    # Strip any markdown link syntax [label](url) → plain url
     import re
+    # Strip markdown link syntax [label](url) → plain url
     raw = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\2', raw)
-    # Remove stray asterisks and hashes
-    raw = re.sub(r'[*#]+', '', raw)
+    # Remove stray asterisks
+    raw = re.sub(r'\*+', '', raw)
+    # Remove # only when NOT part of a URL (i.e. not preceded by a teralumensolutions.com path)
+    # Strategy: temporarily protect all URLs, strip #, then restore
+    url_pattern = re.compile(r'https?://\S+')
+    urls_found = url_pattern.findall(raw)
+    placeholders = {}
+    for i, url in enumerate(urls_found):
+        token = f"__URL{i}__"
+        placeholders[token] = url
+        raw = raw.replace(url, token, 1)
+    # Now safe to strip stray # signs (none remain inside URLs)
+    raw = re.sub(r'#+', '', raw)
+    # Restore URLs
+    for token, url in placeholders.items():
+        raw = raw.replace(token, url)
     # Clean up extra blank lines
     raw = re.sub(r'\n{3,}', '\n\n', raw).strip()
     # ── Correct known bad URLs the model hallucinates ──
