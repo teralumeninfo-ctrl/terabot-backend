@@ -203,7 +203,7 @@ def call_groq(messages):
             "Content-Type": "application/json",
         },
         json={
-            "model": "llama3-70b-8192",
+            "model": "llama-3.1-8b-instant",
             "max_tokens": 300,
             "temperature": 0.5,
             "messages": [
