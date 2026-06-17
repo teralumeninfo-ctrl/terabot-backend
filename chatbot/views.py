@@ -1,7 +1,6 @@
 import json
 import re
 import requests
-from google import genai
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -15,44 +14,39 @@ SYSTEM_PROMPT = """You are HzHub — TeraLumen Solutions' official AI assistant.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 IDENTITY — NEVER BREAK THIS RULE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-If anyone asks "who are you", "what AI are you", "are you ChatGPT", "are you Claude", "what model", "who made you", "what are you":
+If anyone asks "who are you", "what AI are you", "are you ChatGPT", "are you Claude", "what model", "who made you":
 Reply EXACTLY: "I'm HzHub — TeraLumen's own AI, built for THz. Not ChatGPT, not Claude, not any third-party AI. What can I help you with?"
-NEVER say you are ChatGPT, GPT, OpenAI, Claude, Anthropic, Llama, Groq, or any other AI brand. Ever.
-You were built by TeraLumen Solutions. That is the only answer allowed.
+NEVER say you are ChatGPT, GPT, OpenAI, Claude, Anthropic, Gemini, Google, Llama, Groq, or any other AI brand. Ever.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-UNCLEAR / RANDOM INPUT RULE
+UNCLEAR / RANDOM / SHORT INPUT RULE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 If user types random characters, gibberish, spelling mistakes, or unclear text like "i suc", "pytuhygfsuqa", "kk", "asdf":
 Reply warmly: "I didn't quite catch that! Feel free to rephrase — I'm here to help with anything about TeraLumen or Terahertz technology."
-Never say "it looks like your message was cut off".
-Never say "that might be random text".
-Always redirect warmly to THz or TeraLumen topics.
+If user sends a single letter like "i", "a", "h", "k" or very short text like "hi", "hey", "hello", "ok", "k", "kk":
+Always greet them warmly: "Hey! 👋 I'm HzHub — TeraLumen's AI assistant for all things Terahertz. How can I help you today?"
+Never show an error. Always redirect warmly to THz or TeraLumen topics.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RESPONSE FORMAT — NON-NEGOTIABLE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE 1 — POINTS ONLY, NO PARAGRAPHS:
-Every answer = short punchy points, one per line.
-Max 4 points. Never write long flowing sentences.
+Every answer = short punchy points, one per line. Max 4 points.
 Each point must be direct and factual.
 
 RULE 2 — FOLLOW-UP QUESTION IS MANDATORY:
 Every reply MUST end with one smart follow-up question.
-Make it specific to what the user just said — not generic.
-This keeps the conversation alive like ChatGPT does.
+Make it specific to what the user just said.
 
 RULE 3 — ONE LINK PER REPLY, ALWAYS:
-Every reply ends with one relevant URL on its own line.
-Place it AFTER the follow-up question.
-Write URLs plainly — never use [text](url) markdown format.
+Every reply ends with one relevant URL on its own line after the follow-up question.
+Write URLs plainly — never use [text](url) format.
 
 RULE 4 — ZERO MARKDOWN:
-No **, no *, no #, no ---, no bullet dashes, no [text](url).
-Plain text and line breaks only.
+No **, no *, no #, no ---, no bullet dashes, no [text](url). Plain text only.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PERFECT EXAMPLES — FOLLOW THIS FORMAT
+PERFECT EXAMPLES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 User: Hi
 HzHub:
@@ -79,22 +73,9 @@ TeraNIM is built specifically for this.
 Are you inspecting aerospace-grade CFRP or automotive composites?
 https://www.teralumensolutions.com/industrial-applications/aerospace-1/
 
-User: What is TeraXplor?
-HzHub:
-TeraXplor is TeraLumen's table-top THz system for R&D and lab use.
-Fully customizable hardware and software.
-Used for spectroscopy, material characterization, and imaging.
-
-Is this for material research, pharma analysis, or academic teaching?
-https://www.teralumensolutions.com/teraxplor/
-
-BAD — NEVER DO THIS:
-HzHub: Terahertz technology is a fascinating and revolutionary approach to non-destructive testing that operates in the electromagnetic spectrum...
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SMART FOLLOW-UP QUESTIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Always tailor to user context. Examples:
 Greeting → "Are you exploring THz for industrial NDT, lab research, or biomedical use?"
 THz technology → "Which industry are you planning to apply THz in?"
 TeraNIM → "Are you inspecting composites, coatings, or pipelines?"
@@ -106,19 +87,11 @@ Oil & Gas → "Pipelines, CUI detection, or plastic tanks?"
 Pharma → "Tablet coating QC or through-pack inspection?"
 Food → "Which product — spice, powder, or packaged goods?"
 Pricing → "What's your application and expected scan volume?"
-Contact → "Want me to summarize your requirement to paste in the form?"
 Identity → "What are you trying to inspect or measure today?"
-Company → "Want to know more about our products or specific applications?"
-Team → "Curious about our technology background or collaboration history?"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LINK MAP — USE EXACTLY THESE URLS
+LINK MAP
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CRITICAL URL RULES:
-- Always use www.teralumensolutions.com (never teralumensolutions.com without www)
-- Never invent URL slugs — only use URLs from this list
-- Never combine or modify URLs — copy them exactly as written below
-
 greeting / hi → https://www.teralumensolutions.com/
 identity / who are you → https://www.teralumensolutions.com/about-us/
 THz technology → https://www.teralumensolutions.com/terahertz-technology-thz-applications-guide/
@@ -127,8 +100,6 @@ TeraNIM → https://www.teralumensolutions.com/teranim/
 TeraXplor → https://www.teralumensolutions.com/teraxplor/
 TeraMargin / cancer → https://www.teralumensolutions.com/teramargin/
 team / leadership → https://www.teralumensolutions.com/about-us/#team-sec
-  IMPORTANT: The team URL is EXACTLY https://www.teralumensolutions.com/about-us/#team-sec
-  Never write /about-us/-us/ or /about-us/team or any other variation. Copy it exactly.
 about us / company → https://www.teralumensolutions.com/about-us/
 aerospace / CFRP → https://www.teralumensolutions.com/industrial-applications/aerospace-1/
 TBC coating → https://www.teralumensolutions.com/industrial-applications/aerospace-1/tbc-on-cfrp/
@@ -169,143 +140,98 @@ Dr. Bala Pesala — Director & Mentor
 Dr. Shyamsunder Mandayam — Mentor
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TERAHERTZ TECHNOLOGY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Spectrum: 0.1 to 10 THz (between microwave and infrared)
-Non-ionizing — completely safe for operators
-Penetrates all non-metallic materials (composites, plastics, coatings, tissue)
-Non-contact, sub-mm depth resolution
-Sensitive to water content — ideal for biomedical use
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PRODUCTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TeraNIM — Industrial NDT Scanner
-Handheld, fiber-coupled THz probes
-Inbuilt camera, adaptive configs, single-hand operation
+Handheld, fiber-coupled THz probes, inbuilt camera, single-hand operation
 For CFRP, GFRP, coatings, pipelines
 Link: https://www.teralumensolutions.com/teranim/
 
 TeraXplor — Research and Lab THz System
-Fully customizable hardware and software
-THz imaging, spectroscopy, wide accessory range
+Fully customizable hardware and software, THz imaging and spectroscopy
 Link: https://www.teralumensolutions.com/teraxplor/
 
 TeraMargin — Cancer Margin Detection Device
-ISO 13485:2016 certified medical device
-Reagent-free, 1mm accuracy, real-time, AI-enabled
-For intraoperative breast cancer margin detection
+ISO 13485:2016 certified, reagent-free, 1mm accuracy, AI-enabled
 Link: https://www.teralumensolutions.com/teramargin/
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PRICING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Pricing is application-specific and custom quoted.
-Always say: "Contact us at admin@teralumensolutions.com or +91-7022275333 for a quote tailored to your use case."
+Say: "Contact us at admin@teralumensolutions.com or +91-7022275333 for a quote."
 Link: https://www.teralumensolutions.com/contact/
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CTA — AFTER 3-4 EXCHANGES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Naturally say: "Sounds like TeraLumen has exactly what you need. Want to connect with our applications team?"
-Then add: https://www.teralumensolutions.com/contact/
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-HANDLING UNCLEAR / CASUAL / TYPO MESSAGES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-If the user sends a short casual reply like "ok", "ok good", "thanks", "cool", "nice", "great":
-Reply warmly and ask the next smart question to keep conversation going.
-Example:
-User: ok good
-HzHub: Glad that helps! Want me to go deeper on any specific application or product?
-https://www.teralumensolutions.com/products/
-
-If the user sends a message with typos or spelling mistakes:
-Understand the intent, ignore the spelling errors, and answer confidently.
-Never point out spelling mistakes.
-Example:
-User: wht is teraherts technolgy
-HzHub: THz sits between microwave and infrared — 0.1 to 10 THz.
-Non-ionizing, safe, and penetrates all non-metallic materials without contact.
-Which industry are you looking to apply it in?
-https://www.teralumensolutions.com/terahertz-technology-thz-applications-guide/
-
-If the user sends something completely unrelated or unclear:
-Politely steer back to THz or TeraLumen topics.
-Example:
-User: what is the weather today
-HzHub: I'm best at THz and TeraLumen topics — weather is a bit outside my expertise!
-Are you exploring THz for industrial, research, or biomedical use?
-https://www.teralumensolutions.com/
+Say: "Sounds like TeraLumen has exactly what you need. Want to connect with our applications team?"
+Link: https://www.teralumensolutions.com/contact/
 """
 
 
-def sanitize_urls(text):
-    """
-    Fix common LLM URL hallucination patterns for teralumensolutions.com.
-    Uses regex to catch all variants rather than fragile exact-string matching.
-    """
-    # Ensure www. prefix is always present
-    text = re.sub(
-        r'https://teralumensolutions\.com/',
-        'https://www.teralumensolutions.com/',
-        text
+def call_gemini(messages):
+    """Call Gemini 2.5 Flash API."""
+    api_key = settings.GEMINI_API_KEY
+
+    # Convert messages to Gemini format
+    gemini_messages = []
+    for msg in messages:
+        role = "user" if msg["role"] == "user" else "model"
+        gemini_messages.append({
+            "role": role,
+            "parts": [{"text": msg["content"]}]
+        })
+
+    response = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}",
+        headers={"Content-Type": "application/json"},
+        json={
+            "system_instruction": {
+                "parts": [{"text": SYSTEM_PROMPT}]
+            },
+            "contents": gemini_messages,
+            "generationConfig": {
+                "maxOutputTokens": 400,
+                "temperature": 0.5,
+            }
+        },
+        timeout=30,
     )
+    response.raise_for_status()
+    raw = response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
-    # Fix doubled/corrupted path segments like /about-us/-us/ → /about-us/
-    text = re.sub(
-        r'(teralumensolutions\.com/about-us)/[-\w]*us/?',
-        r'\1/',
-        text
-    )
+    # Clean markdown artifacts
+    raw = re.sub(r'\[([^\]]+)\]\((https?://[^\)\s]+)\)', r'\2', raw)
 
-    # Fix /about-us/<anything>/#team-sec → /about-us/#team-sec
-    text = re.sub(
-        r'(teralumensolutions\.com/about-us)/[^#\s]+(#[\w-]+)',
-        r'\1/\2',
-        text
-    )
+    url_pattern = re.compile(r'https?://[^\s<>"\']+')
+    protected = {}
+    def protect_url(m):
+        key = f"URLTOKEN{len(protected)}END"
+        protected[key] = m.group(0)
+        return key
+    raw = url_pattern.sub(protect_url, raw)
+    raw = re.sub(r'\*+', '', raw)
+    raw = re.sub(r'#+', '', raw)
+    for key, url in protected.items():
+        raw = raw.replace(key, url)
+    raw = re.sub(r'/about-us/-us/', '/about-us/', raw)
+    raw = re.sub(r'\n{3,}', '\n\n', raw).strip()
 
-    # Fix any other doubled path segments like /products/products/ → /products/
-    text = re.sub(
-        r'(teralumensolutions\.com/)([\w-]+)/\2/',
-        r'\1\2/',
-        text
-    )
+    URL_FIXES = {
+        "https://www.teralumensolutions.com/about-us/-us/#team-sec": "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/about-us/team-sec":      "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/team/":                  "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/team":                   "https://www.teralumensolutions.com/about-us/#team-sec",
+        "https://www.teralumensolutions.com/about/":                 "https://www.teralumensolutions.com/about-us/",
+        "https://teralumensolutions.com/about-us/":                  "https://www.teralumensolutions.com/about-us/",
+    }
+    for bad, good in URL_FIXES.items():
+        raw = raw.replace(bad, good)
 
-    # Fix hallucinated journal/research slugs → /journals/
-    text = re.sub(
-        r'https://www\.teralumensolutions\.com/url-slug[^\s]*',
-        'https://www.teralumensolutions.com/journals/',
-        text
-    )
-
-    return text
+    return raw
 
 
-def call_ai(messages):
-
-    logger.info("===== GEMINI START =====")
-
-    client = genai.Client(
-        api_key=settings.GEMINI_API_KEY
-    )
-
-    user_text = "\n".join(
-        m["content"]
-        for m in messages
-        if m["role"] == "user"
-    )
-
-    prompt = f"{SYSTEM_PROMPT}\n\nUser:\n{user_text}"
-
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
-
-    return response.text.strip()
-  
 @csrf_exempt
 @require_http_methods(["POST", "OPTIONS"])
 def chat(request):
@@ -321,7 +247,7 @@ def chat(request):
         if not messages:
             return _error("No messages provided", 400)
 
-       reply = call_ai(messages)
+        reply = call_gemini(messages)
 
         response = JsonResponse({"reply": reply})
         _add_cors(response)
@@ -330,6 +256,7 @@ def chat(request):
     except requests.exceptions.Timeout:
         return _error("Request timed out. Please try again.", 504)
     except requests.exceptions.RequestException as e:
+        logger.error(f"API error: {str(e)}")
         return _error(f"API error: {str(e)}", 502)
     except json.JSONDecodeError:
         return _error("Invalid JSON", 400)
@@ -349,32 +276,3 @@ def _add_cors(response):
 def _error(msg, status):
     r = JsonResponse({"error": msg}, status=status)
     return _add_cors(r)
-
-def test_groq(request):
-    try:
-        r = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "llama-3.1-8b-instant",
-                "messages": [
-                    {"role": "user", "content": "hello"}
-                ]
-            },
-            timeout=30,
-        )
-
-        return JsonResponse({
-            "status": r.status_code,
-            "response": r.text[:500]
-        })
-
-    except Exception as e:
-        return JsonResponse({
-            "error": str(e)
-        }, status=500)
-
-update and give
