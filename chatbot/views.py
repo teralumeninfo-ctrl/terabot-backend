@@ -283,6 +283,9 @@ def sanitize_urls(text):
 
 
 def call_groq(messages):
+
+    logger.info("===== CALL_GROQ START =====")
+
     response = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={
@@ -298,41 +301,22 @@ def call_groq(messages):
                 *messages
             ],
         },
-        timeout=30,
+        timeout=60,
     )
+
+    logger.info(f"STATUS CODE: {response.status_code}")
+
     response.raise_for_status()
-    raw = response.json()["choices"][0]["message"]["content"]
 
-    # Strip markdown link syntax [label](url) → bare url
-    raw = re.sub(r'\[([^\]]+)\]\((https?://[^\)\s]+)\)', r'\2', raw)
+    data = response.json()
 
-    # Protect all URLs before stripping stray characters
-    url_pattern = re.compile(r'https?://[^\s<>"\']+')
-    protected = {}
+    logger.info("GROQ RESPONSE RECEIVED")
 
-    def protect_url(m):
-        key = f"URLTOKEN{len(protected)}END"
-        protected[key] = m.group(0)
-        return key
+    raw = data["choices"][0]["message"]["content"]
 
-    raw = url_pattern.sub(protect_url, raw)
-
-    # Strip stray asterisks and hash signs outside of URLs
-    raw = re.sub(r'\*+', '', raw)
-    raw = re.sub(r'#+', '', raw)
-
-    # Restore URLs
-    for key, url in protected.items():
-        raw = raw.replace(key, url)
-
-    # Clean up extra blank lines
-    raw = re.sub(r'\n{3,}', '\n\n', raw).strip()
-
-    # Apply regex-based URL sanitizer (catches all hallucination variants)
-    raw = sanitize_urls(raw)
+    logger.info(f"RAW RESPONSE: {raw[:500]}")
 
     return raw
-
 
 @csrf_exempt
 @require_http_methods(["POST", "OPTIONS"])
@@ -349,7 +333,7 @@ def chat(request):
         if not messages:
             return _error("No messages provided", 400)
 
-        reply = "Backend test successful"
+        reply = call_groq(messages)
 
         response = JsonResponse({"reply": reply})
         _add_cors(response)
