@@ -1,6 +1,7 @@
 import json
 import re
 import requests
+from google import genai
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -282,42 +283,29 @@ def sanitize_urls(text):
     return text
 
 
-def call_groq(messages):
+def call_ai(messages):
 
-    logger.info("===== CALL_GROQ START =====")
+    logger.info("===== GEMINI START =====")
 
-    response = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": "llama-3.1-8b-instant",
-            "max_tokens": 300,
-            "temperature": 0.5,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                *messages
-            ],
-        },
-        timeout=60,
+    client = genai.Client(
+        api_key=settings.GEMINI_API_KEY
     )
 
-    logger.info(f"STATUS CODE: {response.status_code}")
+    user_text = "\n".join(
+        m["content"]
+        for m in messages
+        if m["role"] == "user"
+    )
 
-    response.raise_for_status()
+    prompt = f"{SYSTEM_PROMPT}\n\nUser:\n{user_text}"
 
-    data = response.json()
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
 
-    logger.info("GROQ RESPONSE RECEIVED")
-
-    raw = data["choices"][0]["message"]["content"]
-
-    logger.info(f"RAW RESPONSE: {raw[:500]}")
-
-    return raw
-
+    return response.text.strip()
+  
 @csrf_exempt
 @require_http_methods(["POST", "OPTIONS"])
 def chat(request):
@@ -333,7 +321,7 @@ def chat(request):
         if not messages:
             return _error("No messages provided", 400)
 
-        reply = call_groq(messages)
+       reply = call_ai(messages)
 
         response = JsonResponse({"reply": reply})
         _add_cors(response)
