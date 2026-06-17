@@ -377,3 +377,30 @@ def _add_cors(response):
 def _error(msg, status):
     r = JsonResponse({"error": msg}, status=status)
     return _add_cors(r)
+
+def test_groq(request):
+    try:
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {"role": "user", "content": "hello"}
+                ]
+            },
+            timeout=30,
+        )
+
+        return JsonResponse({
+            "status": r.status_code,
+            "response": r.text[:500]
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "error": str(e)
+        }, status=500)
