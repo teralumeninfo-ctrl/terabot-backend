@@ -184,7 +184,7 @@ def call_gemini(messages):
         })
 
     response = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}",
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}",
         headers={"Content-Type": "application/json"},
         json={
             "system_instruction": {
