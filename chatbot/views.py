@@ -349,7 +349,7 @@ def chat(request):
         if not messages:
             return _error("No messages provided", 400)
 
-        reply = call_groq(messages)
+        reply = "Backend test successful"
 
         response = JsonResponse({"reply": reply})
         _add_cors(response)
