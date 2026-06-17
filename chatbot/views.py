@@ -111,8 +111,13 @@ Company → "Want to know more about our products or specific applications?"
 Team → "Curious about our technology background or collaboration history?"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LINK MAP — USE EXACTLY THESE
+LINK MAP — USE EXACTLY THESE URLS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL URL RULES:
+- Always use www.teralumensolutions.com (never teralumensolutions.com without www)
+- Never invent URL slugs — only use URLs from this list
+- Never combine or modify URLs — copy them exactly as written below
+
 greeting / hi → https://www.teralumensolutions.com/
 identity / who are you → https://www.teralumensolutions.com/about-us/
 THz technology → https://www.teralumensolutions.com/terahertz-technology-thz-applications-guide/
@@ -121,6 +126,8 @@ TeraNIM → https://www.teralumensolutions.com/teranim/
 TeraXplor → https://www.teralumensolutions.com/teraxplor/
 TeraMargin / cancer → https://www.teralumensolutions.com/teramargin/
 team / leadership → https://www.teralumensolutions.com/about-us/#team-sec
+  IMPORTANT: The team URL is EXACTLY https://www.teralumensolutions.com/about-us/#team-sec
+  Never write /about-us/-us/ or /about-us/team or any other variation. Copy it exactly.
 about us / company → https://www.teralumensolutions.com/about-us/
 aerospace / CFRP → https://www.teralumensolutions.com/industrial-applications/aerospace-1/
 TBC coating → https://www.teralumensolutions.com/industrial-applications/aerospace-1/tbc-on-cfrp/
@@ -232,6 +239,49 @@ https://www.teralumensolutions.com/
 """
 
 
+def sanitize_urls(text):
+    """
+    Fix common LLM URL hallucination patterns for teralumensolutions.com.
+    Uses regex to catch all variants rather than fragile exact-string matching.
+    """
+    # Ensure www. prefix is always present
+    text = re.sub(
+        r'https://teralumensolutions\.com/',
+        'https://www.teralumensolutions.com/',
+        text
+    )
+
+    # Fix doubled/corrupted path segments like /about-us/-us/ → /about-us/
+    text = re.sub(
+        r'(teralumensolutions\.com/about-us)/[-\w]*us/?',
+        r'\1/',
+        text
+    )
+
+    # Fix /about-us/<anything>/#team-sec → /about-us/#team-sec
+    text = re.sub(
+        r'(teralumensolutions\.com/about-us)/[^#\s]+(#[\w-]+)',
+        r'\1/\2',
+        text
+    )
+
+    # Fix any other doubled path segments like /products/products/ → /products/
+    text = re.sub(
+        r'(teralumensolutions\.com/)([\w-]+)/\2/',
+        r'\1\2/',
+        text
+    )
+
+    # Fix hallucinated journal/research slugs → /journals/
+    text = re.sub(
+        r'https://www\.teralumensolutions\.com/url-slug[^\s]*',
+        'https://www.teralumensolutions.com/journals/',
+        text
+    )
+
+    return text
+
+
 def call_groq(messages):
     response = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
@@ -253,19 +303,21 @@ def call_groq(messages):
     response.raise_for_status()
     raw = response.json()["choices"][0]["message"]["content"]
 
-    # Strip markdown link syntax [label](url) to bare url
+    # Strip markdown link syntax [label](url) → bare url
     raw = re.sub(r'\[([^\]]+)\]\((https?://[^\)\s]+)\)', r'\2', raw)
 
-    # Protect all URLs before stripping characters
+    # Protect all URLs before stripping stray characters
     url_pattern = re.compile(r'https?://[^\s<>"\']+')
     protected = {}
+
     def protect_url(m):
         key = f"URLTOKEN{len(protected)}END"
         protected[key] = m.group(0)
         return key
+
     raw = url_pattern.sub(protect_url, raw)
 
-    # Strip stray asterisks and hash signs
+    # Strip stray asterisks and hash signs outside of URLs
     raw = re.sub(r'\*+', '', raw)
     raw = re.sub(r'#+', '', raw)
 
@@ -273,27 +325,11 @@ def call_groq(messages):
     for key, url in protected.items():
         raw = raw.replace(key, url)
 
-    # Fix known URL corruption patterns
-    raw = re.sub(r'/about-us/-us/', '/about-us/', raw)
-
     # Clean up extra blank lines
     raw = re.sub(r'\n{3,}', '\n\n', raw).strip()
 
-    # Hard-replace known hallucinated bad URLs
-    URL_FIXES = {
-        "https://www.teralumensolutions.com/about-us/-us/#team-sec": "https://www.teralumensolutions.com/about-us/#team-sec",
-        "https://www.teralumensolutions.com/about-us/-us/":          "https://www.teralumensolutions.com/about-us/",
-        "https://www.teralumensolutions.com/about-us/team-sec":      "https://www.teralumensolutions.com/about-us/#team-sec",
-        "https://www.teralumensolutions.com/about-us/team":          "https://www.teralumensolutions.com/about-us/#team-sec",
-        "https://www.teralumensolutions.com/team/":                  "https://www.teralumensolutions.com/about-us/#team-sec",
-        "https://www.teralumensolutions.com/team":                   "https://www.teralumensolutions.com/about-us/#team-sec",
-        "https://www.teralumensolutions.com/about/":                 "https://www.teralumensolutions.com/about-us/",
-        "https://www.teralumensolutions.com/about":                  "https://www.teralumensolutions.com/about-us/",
-        "https://teralumensolutions.com/about-us/":                  "https://www.teralumensolutions.com/about-us/",
-        "https://www.teralumensolutions.com/url-slugthz-cement-hydration-kinetics-c3s-tricalcium-silicate/": "https://www.teralumensolutions.com/journals/",
-    }
-    for bad, good in URL_FIXES.items():
-        raw = raw.replace(bad, good)
+    # Apply regex-based URL sanitizer (catches all hallucination variants)
+    raw = sanitize_urls(raw)
 
     return raw
 
