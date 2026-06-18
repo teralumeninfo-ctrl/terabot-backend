@@ -1,5 +1,6 @@
 import json
 import re
+import time
 import requests
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -24,7 +25,7 @@ UNCLEAR / RANDOM / SHORT INPUT RULE
 If user types random characters, gibberish, spelling mistakes, or unclear text like "i suc", "pytuhygfsuqa", "kk", "asdf":
 Reply warmly: "I didn't quite catch that! Feel free to rephrase — I'm here to help with anything about TeraLumen or Terahertz technology."
 If user sends a single letter like "i", "a", "h", "k" or very short text like "hi", "hey", "hello", "ok", "k", "kk":
-Always greet them warmly: "Hey! 👋 I'm HzHub — TeraLumen's AI assistant for all things Terahertz. How can I help you today?"
+Always greet them warmly: "Hey! I'm HzHub — TeraLumen's AI assistant for all things Terahertz. How can I help you today?"
 Never show an error. Always redirect warmly to THz or TeraLumen topics.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -169,47 +170,25 @@ Say: "Sounds like TeraLumen has exactly what you need. Want to connect with our 
 Link: https://www.teralumensolutions.com/contact/
 """
 
+# Models to try in order when rate limited
+GEMINI_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+]
 
-def call_gemini(messages):
-    """Call Gemini 2.5 Flash API."""
-    api_key = settings.GEMINI_API_KEY
 
-    # Convert messages to Gemini format
-    gemini_messages = []
-    for msg in messages:
-        role = "user" if msg["role"] == "user" else "model"
-        gemini_messages.append({
-            "role": role,
-            "parts": [{"text": msg["content"]}]
-        })
-
-    response = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}",
-        headers={"Content-Type": "application/json"},
-        json={
-            "system_instruction": {
-                "parts": [{"text": SYSTEM_PROMPT}]
-            },
-            "contents": gemini_messages,
-            "generationConfig": {
-                "maxOutputTokens": 400,
-                "temperature": 0.5,
-            }
-        },
-        timeout=30,
-    )
-    response.raise_for_status()
-    raw = response.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-    # Clean markdown artifacts
+def clean_response(raw):
+    """Strip markdown artifacts from AI response."""
     raw = re.sub(r'\[([^\]]+)\]\((https?://[^\)\s]+)\)', r'\2', raw)
-
     url_pattern = re.compile(r'https?://[^\s<>"\']+')
     protected = {}
+
     def protect_url(m):
         key = f"URLTOKEN{len(protected)}END"
         protected[key] = m.group(0)
         return key
+
     raw = url_pattern.sub(protect_url, raw)
     raw = re.sub(r'\*+', '', raw)
     raw = re.sub(r'#+', '', raw)
@@ -228,8 +207,62 @@ def call_gemini(messages):
     }
     for bad, good in URL_FIXES.items():
         raw = raw.replace(bad, good)
-
     return raw
+
+
+def call_gemini(messages):
+    """Call Gemini API with automatic fallback across models on 429."""
+    api_key = settings.GEMINI_API_KEY
+
+    gemini_messages = []
+    for msg in messages:
+        role = "user" if msg["role"] == "user" else "model"
+        gemini_messages.append({
+            "role": role,
+            "parts": [{"text": msg["content"]}]
+        })
+
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": gemini_messages,
+        "generationConfig": {
+            "maxOutputTokens": 400,
+            "temperature": 0.5,
+        }
+    }
+
+    for i, model in enumerate(GEMINI_MODELS):
+        try:
+            response = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
+                headers={"Content-Type": "application/json"},
+                json=payload,
+                timeout=30,
+            )
+
+            if response.status_code == 429:
+                logger.warning(f"Rate limit on {model}, trying next...")
+                if i < len(GEMINI_MODELS) - 1:
+                    time.sleep(1)
+                    continue
+                else:
+                    raise Exception("All Gemini models rate limited")
+
+            response.raise_for_status()
+            logger.info(f"Gemini model used: {model}")
+            raw = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            return clean_response(raw)
+
+        except requests.exceptions.Timeout:
+            raise
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                if i < len(GEMINI_MODELS) - 1:
+                    time.sleep(1)
+                    continue
+            raise
+
+    raise Exception("All Gemini models failed")
 
 
 @csrf_exempt
@@ -248,7 +281,6 @@ def chat(request):
             return _error("No messages provided", 400)
 
         reply = call_gemini(messages)
-
         response = JsonResponse({"reply": reply})
         _add_cors(response)
         return response
