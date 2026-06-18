@@ -170,7 +170,7 @@ Say: "Sounds like TeraLumen has exactly what you need. Want to connect with our 
 Link: https://www.teralumensolutions.com/contact/
 """
 
-# Models to try in order when rate limited
+# Gemini models to try in order when rate limited
 GEMINI_MODELS = [
     "gemini-2.5-flash",
     "gemini-2.0-flash",
@@ -210,6 +210,34 @@ def clean_response(raw):
     return raw
 
 
+def call_groq_fallback(messages):
+    """Groq fallback when all Gemini models are rate limited."""
+    groq_key = getattr(settings, 'GROQ_API_KEY', '')
+    if not groq_key:
+        raise Exception("No Groq fallback key available")
+
+    response = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {groq_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "llama-3.1-8b-instant",
+            "max_tokens": 400,
+            "temperature": 0.5,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                *messages
+            ],
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    raw = response.json()["choices"][0]["message"]["content"]
+    return clean_response(raw)
+
+
 def call_gemini(messages):
     """Call Gemini API with automatic fallback across models on 429."""
     api_key = settings.GEMINI_API_KEY
@@ -246,7 +274,8 @@ def call_gemini(messages):
                     time.sleep(1)
                     continue
                 else:
-                    raise Exception("All Gemini models rate limited")
+                    logger.warning("All Gemini models rate limited, trying Groq fallback...")
+                    return call_groq_fallback(messages)
 
             response.raise_for_status()
             logger.info(f"Gemini model used: {model}")
@@ -260,9 +289,13 @@ def call_gemini(messages):
                 if i < len(GEMINI_MODELS) - 1:
                     time.sleep(1)
                     continue
+                else:
+                    logger.warning("All Gemini models rate limited, trying Groq fallback...")
+                    return call_groq_fallback(messages)
             raise
 
-    raise Exception("All Gemini models failed")
+    logger.warning("All Gemini models failed, trying Groq fallback...")
+    return call_groq_fallback(messages)
 
 
 @csrf_exempt
