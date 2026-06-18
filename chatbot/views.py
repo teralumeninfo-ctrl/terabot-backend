@@ -173,8 +173,8 @@ Link: https://www.teralumensolutions.com/contact/
 # Models to try in order when rate limited
 GEMINI_MODELS = [
     "gemini-2.5-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
 ]
 
 
